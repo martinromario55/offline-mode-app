@@ -4,6 +4,7 @@ import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Audio } from "expo-av";
 import NetInfo from "@react-native-community/netinfo";
+import SongItem from "@/components/song-item";
 
 const DownloadedSongs = () => {
   const [downloadedSongs, setDownloadedSongs] = useState([]);
@@ -100,7 +101,9 @@ const DownloadedSongs = () => {
       <FlatList
         data={downloadedSongs}
         keyExtractor={item => item.title}
-        renderItem={renderDownloadedItem}
+        renderItem={({ item }) => (
+          <SongItem song={item} downloadedSongs={downloadedSongs} />
+        )}
       />
     </View>
   );

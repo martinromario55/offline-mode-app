@@ -13,31 +13,54 @@ import * as FileSystem from "expo-file-system";
 import { Audio } from "expo-av";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import SongListScreen from "@/components/songs";
+import SongItem from "@/components/song-item";
+import { Toast } from "react-native-toast-notifications";
 
 const songs = [
   {
     id: "1",
-    title: "Song A",
+    title: "Deep Dive | How to Quit Your Job the Right Way",
+    author: "Apple Talk",
+    duration: "52:27 mins",
+    image:
+      "https://img.freepik.com/free-vector/electronic-audio-sound-equalizer-bar-background-design_1017-51572.jpg?t=st=1735039501~exp=1735043101~hmac=8d40986bd4d05fd5ddc597b1e70bf3b141f3ef2144d707fbbdf0fe50f8b64264&w=996",
     url: "https://samplelib.com/lib/preview/mp3/sample-12s.mp3",
   },
   {
     id: "2",
-    title: "Song B",
+    title: "Finding a Missing Person in the Middle East",
+    author: "Office Ladies",
+    duration: "21:37 mins",
+    image:
+      "https://img.freepik.com/free-vector/electronic-audio-sound-equalizer-bar-background-design_1017-51572.jpg?t=st=1735039501~exp=1735043101~hmac=8d40986bd4d05fd5ddc597b1e70bf3b141f3ef2144d707fbbdf0fe50f8b64264&w=996",
     url: "https://samplelib.com/lib/preview/mp3/sample-15s.mp3",
   },
   {
     id: "3",
-    title: "Song C",
+    title: "The Winning Example of Extreme Ownership",
+    author: "Stuff You Should Know",
+    duration: "35:52 mins",
+    image:
+      "https://img.freepik.com/free-vector/electronic-audio-sound-equalizer-bar-background-design_1017-51572.jpg?t=st=1735039501~exp=1735043101~hmac=8d40986bd4d05fd5ddc597b1e70bf3b141f3ef2144d707fbbdf0fe50f8b64264&w=996",
     url: "https://reckhorn.com/media/music/08/bb/8a/Doppelbass-1.mp3",
   },
   {
     id: "4",
-    title: "Song D",
+    title: "Tale of Two Cities",
+    author: "Charles Dickens",
+    duration: "35:52 mins",
+    image:
+      "https://img.freepik.com/free-vector/electronic-audio-sound-equalizer-bar-background-design_1017-51572.jpg?t=st=1735039501~exp=1735043101~hmac=8d40986bd4d05fd5ddc597b1e70bf3b141f3ef2144d707fbbdf0fe50f8b64264&w=996",
     url: "https://reckhorn.com/media/music/7a/6f/e8/Test-2.mp3",
   },
   {
     id: "5",
-    title: "Song E",
+    title: "The Messager",
+    author: "Bobie Wine",
+    duration: "35:52 mins",
+    image:
+      "https://img.freepik.com/free-vector/electronic-audio-sound-equalizer-bar-background-design_1017-51572.jpg?t=st=1735039501~exp=1735043101~hmac=8d40986bd4d05fd5ddc597b1e70bf3b141f3ef2144d707fbbdf0fe50f8b64264&w=996",
     url: "https://reckhorn.com/media/music/58/95/5f/Test-3.mp3",
   },
 ];
@@ -47,6 +70,7 @@ export default function OfflineModeApp() {
   const [isOffline, setIsOffline] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [currentDownload, setCurrentDownload] = useState(null);
+
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
 
@@ -114,10 +138,11 @@ export default function OfflineModeApp() {
         return updatedSongs;
       });
 
-      Alert.alert(
-        "Download Complete",
-        `${song.title} is now available offline.`
-      );
+      Toast.show(`Downloaded ${song.title}`, {
+        type: "success",
+        placement: "top",
+        duration: 1500,
+      });
     } catch (error) {
       if (error.code === "E_FILESYSTEM_ERROR") {
         Alert.alert("Storage Error", "Storage full or unavailable.");
@@ -207,7 +232,7 @@ export default function OfflineModeApp() {
     }
   };
 
-  console.log(downloadedSongs);
+  // console.log(downloadedSongs);
 
   // Render song item
   const renderSongItem = ({ item }) => {
@@ -250,18 +275,38 @@ export default function OfflineModeApp() {
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Offline Songs</Text>
-      <Button title="Download All" onPress={downloadAllSongs} />
+      {downloadedSongs.length !== songs.length && (
+        <Button title="Download All" onPress={downloadAllSongs} />
+      )}
+      {downloadedSongs.length > 0 && (
+        <View style={{ marginTop: 5 }}>
+          <Button title="Delete All" color="red" onPress={deleteAllSongs} />
+        </View>
+      )}
       <FlatList
         data={songs}
         keyExtractor={item => item.id}
-        renderItem={renderSongItem}
+        // renderItem={renderSongItem}
+        renderItem={({ item }) => (
+          <SongItem
+            song={item}
+            key={item.id}
+            downloadedSongs={downloadedSongs}
+            isDownloading={isDownloading}
+            currentDownload={currentDownload}
+            isOffline={isOffline}
+            enqueueDownload={enqueueDownload}
+            deleteSong={deleteSong}
+          />
+        )}
+        showsVerticalScrollIndicator={false}
       />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
+  container: { flex: 1, padding: 16 },
   header: { fontSize: 24, fontWeight: "bold", marginBottom: 10 },
   subHeader: {
     fontSize: 20,
