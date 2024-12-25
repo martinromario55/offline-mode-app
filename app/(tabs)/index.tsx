@@ -1,19 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
-import {
-  View,
-  Text,
-  Button,
-  StyleSheet,
-  FlatList,
-  Alert,
-  ActivityIndicator,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, Button, StyleSheet, FlatList, Alert } from "react-native";
 import * as FileSystem from "expo-file-system";
-import { Audio } from "expo-av";
 import NetInfo from "@react-native-community/netinfo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import SongListScreen from "@/components/songs";
 import SongItem from "@/components/song-item";
 import { Toast } from "react-native-toast-notifications";
 
@@ -71,12 +60,13 @@ export default function OfflineModeApp() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [currentDownload, setCurrentDownload] = useState(null);
 
+  const [usedStorage, setUsedStorage] = useState(0);
+  const [totalStorage, setTotalStorage] = useState("Unknown");
+
   const [queue, setQueue] = useState([]);
   const queueRef = useRef([]);
 
   useEffect(() => {
-    // Clear async storage
-    // AsyncStorage.clear();
     const unsubscribe = NetInfo.addEventListener(state => {
       setIsOffline(!state.isConnected);
     });
@@ -89,6 +79,11 @@ export default function OfflineModeApp() {
       processQueue();
     }
   }, [queue]);
+
+  useEffect(() => {
+    calculateUsedStorage();
+    fetchTotalStorage();
+  }, [downloadedSongs]);
 
   // Load previously downloaded files' metadata
   const loadDownloadedMetadata = async () => {
@@ -128,12 +123,31 @@ export default function OfflineModeApp() {
     setQueue([...queueRef.current]);
 
     const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
+    const imageUri = FileSystem.documentDirectory + song.title + ".jpg";
+
     setCurrentDownload(song.title);
 
     try {
-      const { uri } = await FileSystem.downloadAsync(song.url, fileUri);
+      const { uri: audioUri } = await FileSystem.downloadAsync(
+        song.url,
+        fileUri
+      );
+      const { uri: downloadedImageUri } = await FileSystem.downloadAsync(
+        song.image,
+        imageUri
+      );
       setDownloadedSongs(prevSongs => {
-        const updatedSongs = [...prevSongs, { title: song.title, uri }];
+        const updatedSongs = [
+          ...prevSongs,
+          {
+            id: song.id,
+            title: song.title,
+            author: song.author,
+            duration: song.duration,
+            image: downloadedImageUri,
+            uri: audioUri,
+          },
+        ];
         saveDownloadedMetadata(updatedSongs);
         return updatedSongs;
       });
@@ -157,30 +171,30 @@ export default function OfflineModeApp() {
   };
 
   // Download a single song
-  const downloadSong = async (song, retry = false) => {
-    const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
-    setIsDownloading(true);
-    setCurrentDownload(song.title);
+  // const downloadSong = async (song, retry = false) => {
+  //   const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
+  //   setIsDownloading(true);
+  //   setCurrentDownload(song.title);
 
-    try {
-      const { uri } = await FileSystem.downloadAsync(song.url, fileUri);
-      const updatedSongs = [...downloadedSongs, { title: song.title, uri }];
-      await saveDownloadedMetadata(updatedSongs);
-      Alert.alert(
-        "Download Complete",
-        `${song.title} is now available offline.`
-      );
-    } catch (error) {
-      if (error.code === "E_FILESYSTEM_ERROR") {
-        Alert.alert("Storage Error", "Storage full or unavailable.");
-      } else {
-        Alert.alert("Download Failed", `Failed to download ${song.title}.`);
-      }
-    } finally {
-      setIsDownloading(false);
-      setCurrentDownload(null);
-    }
-  };
+  //   try {
+  //     const { uri } = await FileSystem.downloadAsync(song.url, fileUri);
+  //     const updatedSongs = [...downloadedSongs, { title: song.title, uri }];
+  //     await saveDownloadedMetadata(updatedSongs);
+  //     Alert.alert(
+  //       "Download Complete",
+  //       `${song.title} is now available offline.`
+  //     );
+  //   } catch (error) {
+  //     if (error.code === "E_FILESYSTEM_ERROR") {
+  //       Alert.alert("Storage Error", "Storage full or unavailable.");
+  //     } else {
+  //       Alert.alert("Download Failed", `Failed to download ${song.title}.`);
+  //     }
+  //   } finally {
+  //     setIsDownloading(false);
+  //     setCurrentDownload(null);
+  //   }
+  // };
 
   // Download all songs
   const downloadAllSongs = async () => {
@@ -195,13 +209,21 @@ export default function OfflineModeApp() {
   // Delete a song
   const deleteSong = async songTitle => {
     const fileUri = FileSystem.documentDirectory + songTitle + ".mp3";
+    const imageUri = FileSystem.documentDirectory + songTitle + ".jpg";
     try {
       await FileSystem.deleteAsync(fileUri);
+      await FileSystem.deleteAsync(imageUri);
+
       const updatedSongs = downloadedSongs.filter(
         song => song.title !== songTitle
       );
       await saveDownloadedMetadata(updatedSongs);
-      Alert.alert("Deleted", `${songTitle} has been deleted.`);
+
+      Toast.show(`${songTitle} has been deleted.`, {
+        type: "success",
+        placement: "top",
+        duration: 3000,
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to delete the file.");
     }
@@ -212,69 +234,123 @@ export default function OfflineModeApp() {
     try {
       for (const song of downloadedSongs) {
         const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
+        const imageUri = FileSystem.documentDirectory + song.title + ".jpg";
         await FileSystem.deleteAsync(fileUri);
+        await FileSystem.deleteAsync(imageUri);
       }
       await saveDownloadedMetadata([]);
-      Alert.alert("Deleted All", "All downloaded songs have been deleted.");
+      // Alert.alert("Deleted All", "All downloaded songs have been deleted.");
+      Toast.show("All downloaded songs have been deleted", {
+        type: "success",
+        placement: "top",
+        duration: 5000,
+      });
     } catch (error) {
       Alert.alert("Error", "Failed to delete all files.");
     }
   };
 
   // Play a song
-  const playSong = async uri => {
+  // const playSong = async uri => {
+  //   try {
+  //     const sound = new Audio.Sound();
+  //     await sound.loadAsync({ uri });
+  //     await sound.playAsync();
+  //   } catch (error) {
+  //     Alert.alert("Playback Error", error.message);
+  //   }
+  // };
+
+  // console.log(isOffline);
+
+  // Render song item
+  // const renderSongItem = ({ item }) => {
+  //   const isDownloaded = downloadedSongs.some(
+  //     song => song.title === item.title
+  //   );
+  //   const downloadedFile = downloadedSongs.find(
+  //     song => song.title === item.title
+  //   );
+
+  //   return (
+  //     <View style={styles.songItem}>
+  //       <Text style={styles.songTitle}>{item.title}</Text>
+  //       {isDownloading && currentDownload === item.title ? (
+  //         <ActivityIndicator size="small" color="#0000ff" />
+  //       ) : (
+  //         <>
+  //           {!isOffline && !isDownloaded && (
+  //             <Button title="Download" onPress={() => enqueueDownload(item)} />
+  //           )}
+  //           {isDownloaded && (
+  //             <>
+  //               <Button
+  //                 title="Play Offline"
+  //                 onPress={() => playSong(downloadedFile.uri)}
+  //               />
+  //               <Button
+  //                 title="Delete"
+  //                 color="red"
+  //                 onPress={() => deleteSong(item.title)}
+  //               />
+  //             </>
+  //           )}
+  //         </>
+  //       )}
+  //     </View>
+  //   );
+  // };
+
+  // Calculate used storage
+  const calculateUsedStorage = async () => {
     try {
-      const sound = new Audio.Sound();
-      await sound.loadAsync({ uri });
-      await sound.playAsync();
+      let totalSize = 0;
+
+      for (const song of downloadedSongs) {
+        const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
+        const fileInfo = await FileSystem.getInfoAsync(fileUri);
+        if (fileInfo.exists) {
+          totalSize += fileInfo.size; // Add the file size (in bytes)
+        }
+      }
+
+      setUsedStorage(totalSize); // Set the used storage
     } catch (error) {
-      Alert.alert("Playback Error", error.message);
+      console.error("Failed to calculate used storage:", error);
     }
   };
 
-  // console.log(downloadedSongs);
+  // Fetch total storage
+  const fetchTotalStorage = async () => {
+    try {
+      const freeDiskStorage = await FileSystem.getFreeDiskStorageAsync();
+      setTotalStorage(freeDiskStorage);
+    } catch (error) {
+      console.error("Failed to fetch total storage:", error);
+    }
+  };
 
-  // Render song item
-  const renderSongItem = ({ item }) => {
-    const isDownloaded = downloadedSongs.some(
-      song => song.title === item.title
-    );
-    const downloadedFile = downloadedSongs.find(
-      song => song.title === item.title
-    );
-
-    return (
-      <View style={styles.songItem}>
-        <Text style={styles.songTitle}>{item.title}</Text>
-        {isDownloading && currentDownload === item.title ? (
-          <ActivityIndicator size="small" color="#0000ff" />
-        ) : (
-          <>
-            {!isOffline && !isDownloaded && (
-              <Button title="Download" onPress={() => enqueueDownload(item)} />
-            )}
-            {isDownloaded && (
-              <>
-                <Button
-                  title="Play Offline"
-                  onPress={() => playSong(downloadedFile.uri)}
-                />
-                <Button
-                  title="Delete"
-                  color="red"
-                  onPress={() => deleteSong(item.title)}
-                />
-              </>
-            )}
-          </>
-        )}
-      </View>
-    );
+  const formatBytes = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.header}>Offline Songs</Text>
+      <View style={styles.storageInfo}>
+        <Text style={styles.storageText}>
+          Used Storage: {formatBytes(usedStorage)}
+        </Text>
+        <Text style={styles.storageText}>
+          Total Storage:{" "}
+          {totalStorage !== "Unknown" ? formatBytes(totalStorage) : "Unknown"}
+        </Text>
+      </View>
+
       {downloadedSongs.length !== songs.length && (
         <Button title="Download All" onPress={downloadAllSongs} />
       )}
@@ -316,4 +392,20 @@ const styles = StyleSheet.create({
   },
   songItem: { marginBottom: 20 },
   songTitle: { fontSize: 18, marginBottom: 10 },
+  storageInfo: {
+    marginTop: 16,
+    padding: 16,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    elevation: 2, // Shadow for Android
+    shadowColor: "#000", // Shadow for iOS
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  storageText: {
+    fontSize: 14,
+    color: "#333",
+    marginBottom: 8,
+  },
 });
