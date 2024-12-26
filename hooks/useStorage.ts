@@ -9,13 +9,23 @@ export const useStorage = downloadedSongs => {
     const calculateUsedStorage = async () => {
       try {
         let totalSize = 0;
-        for (const song of downloadedSongs) {
-          const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
-          const fileInfo = await FileSystem.getInfoAsync(fileUri);
-          if (fileInfo.exists) {
-            totalSize += fileInfo.size; // Add the file size (in bytes)
+
+        // Ensure downloadedSongs is an object with categories
+        if (downloadedSongs && typeof downloadedSongs === "object") {
+          for (const category in downloadedSongs) {
+            if (Array.isArray(downloadedSongs[category])) {
+              for (const song of downloadedSongs[category]) {
+                const fileUri =
+                  FileSystem.documentDirectory + song.title + ".mp3";
+                const fileInfo = await FileSystem.getInfoAsync(fileUri);
+                if (fileInfo.exists) {
+                  totalSize += fileInfo.size; // Add the file size (in bytes)
+                }
+              }
+            }
           }
         }
+
         setUsedStorage(totalSize);
       } catch (error) {
         console.error("Failed to calculate used storage:", error);

@@ -19,6 +19,7 @@ const SongItem = ({
   isOffline,
   enqueueDownload,
   deleteSong,
+  category,
 }) => {
   const isDownloaded = downloadedSongs.some(item => item.title === song.title);
   const downloadedFile = downloadedSongs.find(
@@ -47,6 +48,43 @@ const SongItem = ({
     } catch (error: any) {
       Alert.alert("Playback Error", error.message);
     }
+  };
+
+  // console.log("Downloaded Songs", downloadedSongs);
+  // console.log(" Song", song);
+
+  const renderDownloadButton = () => {
+    if (isDownloaded) {
+      return (
+        <TouchableOpacity
+          onPress={() => {
+            console.log(
+              `[DEBUG] Deleting song: ${song.title} in category: ${category}`
+            );
+            deleteSong(song.title, category);
+          }}
+        >
+          <MaterialIcons name="delete" size={20} color={"#f00"} />
+        </TouchableOpacity>
+      );
+    }
+
+    if (isDownloading && currentDownload === song.title) {
+      return <ActivityIndicator size="small" color="#0ff" />;
+    }
+
+    return (
+      <TouchableOpacity
+        onPress={() => {
+          console.log(
+            `[DEBUG] Enqueuing download for song: ${song.title} in category: ${category}`
+          );
+          enqueueDownload(song, category);
+        }}
+      >
+        <MaterialIcons name="file-download" size={20} color={"#333"} />
+      </TouchableOpacity>
+    );
   };
 
   if (isOffline) {
@@ -86,7 +124,7 @@ const SongItem = ({
               <TouchableOpacity
                 onPress={() => {
                   if (isDownloaded) {
-                    deleteSong(downloadedFile.title);
+                    deleteSong(song.title, category);
                   } else {
                     // enqueueDownload(song);
                     alert("You are offline!");
@@ -97,9 +135,9 @@ const SongItem = ({
                   <ActivityIndicator size="small" color="#0ff" />
                 ) : (
                   <MaterialIcons
-                    name={isDownloaded ? "file-download-done" : "file-download"}
+                    name={isDownloaded ? "delete" : "file-download"}
                     size={26}
-                    color={isDownloaded ? "green" : "gray"}
+                    color={isDownloaded ? "red" : "gray"}
                   />
                 )}
               </TouchableOpacity>
@@ -111,7 +149,7 @@ const SongItem = ({
       return (
         <View style={styles.offlineContainer}>
           <MaterialIcons name="signal-cellular-no-sim" size={30} color="#999" />
-          <Text style={{ marginTop: 10, color: "#999" }}>
+          <Text style={{ marginTop: 10, color: "#999", textAlign: "center" }}>
             You are offline. Please check your internet connection.
           </Text>
         </View>
@@ -119,7 +157,7 @@ const SongItem = ({
     }
   }
 
-  //   console.log("Downloaded File", downloadedFile);
+  // console.log("Downloaded File", downloadedSongs);
 
   return (
     <View style={styles.songItem}>
@@ -150,25 +188,8 @@ const SongItem = ({
             </Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => {
-              if (isDownloaded) {
-                deleteSong(song.title);
-              } else {
-                enqueueDownload(song);
-              }
-            }}
-          >
-            {isDownloading && currentDownload === song.title ? (
-              <ActivityIndicator size="small" color="#0ff" />
-            ) : (
-              <MaterialIcons
-                name={isDownloaded ? "file-download-done" : "file-download"}
-                size={26}
-                color={isDownloaded ? "green" : "gray"}
-              />
-            )}
-          </TouchableOpacity>
+          {/* Download Button */}
+          {renderDownloadButton()}
         </View>
       </View>
     </View>
@@ -181,8 +202,10 @@ const styles = StyleSheet.create({
   songItem: {
     flexDirection: "row",
     alignItems: "center",
+    width: 250,
     marginBottom: 16,
     marginTop: 10,
+    marginRight: 5,
     backgroundColor: "#f9f9f9",
     borderRadius: 8,
     padding: 8,
@@ -231,17 +254,21 @@ const styles = StyleSheet.create({
     width: 90,
   },
   offlineContainer: {
-    flex: 1,
-    alignItems: "center",
+    flexDirection: "row",
+    flexWrap: "wrap",
     justifyContent: "center",
-    padding: 20,
+    alignItems: "center",
+    width: 250,
+    marginBottom: 16,
+    marginTop: 10,
+    marginRight: 5,
     backgroundColor: "#f9f9f9",
     borderRadius: 8,
+    padding: 8,
     elevation: 2, // Shadow for Android
     shadowColor: "#000", // Shadow for iOS
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    marginBottom: 16,
   },
 });

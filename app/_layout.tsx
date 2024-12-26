@@ -12,6 +12,7 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { ToastProvider } from "react-native-toast-notifications";
+import { useStore } from "@/hooks/useStore";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -27,6 +28,15 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded]);
+
+  useEffect(() => {
+    const initializeStore = async () => {
+      const { loadMetadata, processQueue } = useStore.getState();
+      await loadMetadata();
+      processQueue(); // Ensure any queued downloads start processing
+    };
+    initializeStore();
+  }, []);
 
   if (!loaded) {
     return null;
