@@ -1,122 +1,58 @@
-import { Alert, Button, FlatList, StyleSheet, Text, View } from "react-native";
-import React, { useEffect, useState } from "react";
-import * as FileSystem from "expo-file-system";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Audio } from "expo-av";
-import NetInfo from "@react-native-community/netinfo";
+import React, { useState } from "react";
+import { View, Text, Button, StyleSheet, FlatList } from "react-native";
+import { useNetworkStatus } from "@/hooks/useNetworkStatus";
+import { useStorage } from "@/hooks/useStorage";
+import { useDownloadQueue } from "@/hooks/useDownloadQueue";
 import SongItem from "@/components/song-item";
 
-const DownloadedSongs = () => {
+const OfflineModeApp = () => {
   const [downloadedSongs, setDownloadedSongs] = useState([]);
-  const [isOffline, setIsOffline] = useState(false);
+  const isOffline = useNetworkStatus();
+  const { usedStorage, totalStorage } = useStorage(downloadedSongs);
+  const { enqueueDownload, processQueue, isDownloading, currentDownload } =
+    useDownloadQueue(downloadedSongs, setDownloadedSongs);
 
-  useEffect(() => {
-    const unsubscribe = NetInfo.addEventListener(state => {
-      setIsOffline(!state.isConnected);
-    });
-    loadDownloadedMetadata();
-    return () => unsubscribe();
-  }, []);
-
-  // Load previously downloaded files' metadata
-  const loadDownloadedMetadata = async () => {
-    try {
-      const metadata = await AsyncStorage.getItem("downloadedSongs");
-      if (metadata) setDownloadedSongs(JSON.parse(metadata));
-    } catch (error) {
-      console.error("Failed to load metadata:", error);
-    }
-  };
-
-  const deleteSong = async songTitle => {
-    const fileUri = FileSystem.documentDirectory + songTitle + ".mp3";
-    try {
-      await FileSystem.deleteAsync(fileUri);
-      const updatedSongs = downloadedSongs.filter(
-        song => song.title !== songTitle
+  const downloadAllSongs = async (songs, downloadedSongs, enqueueDownload) => {
+    songs.forEach(song => {
+      const isAlreadyDownloaded = downloadedSongs.some(
+        item => item.title === song.title
       );
-      await saveDownloadedMetadata(updatedSongs);
-      Alert.alert("Deleted", `${songTitle} has been deleted.`);
-    } catch (error) {
-      Alert.alert("Error", "Failed to delete the file.");
-    }
-  };
-
-  // Delete all downloaded songs
-  const deleteAllSongs = async () => {
-    try {
-      for (const song of downloadedSongs) {
-        const fileUri = FileSystem.documentDirectory + song.title + ".mp3";
-        await FileSystem.deleteAsync(fileUri);
+      if (!isAlreadyDownloaded) {
+        enqueueDownload(song);
       }
-      await saveDownloadedMetadata([]);
-      Alert.alert("Deleted All", "All downloaded songs have been deleted.");
-    } catch (error) {
-      Alert.alert("Error", "Failed to delete all files.");
-    }
+    });
   };
 
-  // Save metadata
-  const saveDownloadedMetadata = async updatedSongs => {
-    try {
-      await AsyncStorage.setItem(
-        "downloadedSongs",
-        JSON.stringify(updatedSongs)
-      );
-      setDownloadedSongs(updatedSongs);
-    } catch (error) {
-      console.error("Failed to save metadata:", error);
-    }
-  };
-
-  // Play a song
-  const playSong = async uri => {
-    try {
-      const sound = new Audio.Sound();
-      await sound.loadAsync({ uri });
-      await sound.playAsync();
-    } catch (error) {
-      Alert.alert("Playback Error", error.message);
-    }
-  };
-
-  // Render downloaded tracks
-  const renderDownloadedItem = ({ item }) => (
-    <View style={styles.songItem}>
-      <Text style={styles.songTitle}>{item.title}</Text>
-      <Button title="Play" onPress={() => playSong(item.uri)} />
-      <Button
-        title="Delete"
-        color="red"
-        onPress={() => deleteSong(item.title)}
-      />
-    </View>
-  );
   return (
-    <View>
-      <Text style={styles.subHeader}>Downloaded Tracks</Text>
-      {downloadedSongs.length > 0 && (
-        <Button title="Delete All" color="red" onPress={deleteAllSongs} />
-      )}
+    <View style={styles.container}>
+      <Text style={styles.header}>Offline Songs</Text>
+      <View style={styles.storageInfo}>
+        <Text style={styles.storageText}>Used Storage: {usedStorage}</Text>
+        <Text style={styles.storageText}>Total Storage: {totalStorage}</Text>
+      </View>
       <FlatList
-        data={downloadedSongs}
-        keyExtractor={item => item.title}
+        data={songs}
+        keyExtractor={item => item.id}
         renderItem={({ item }) => (
-          <SongItem song={item} downloadedSongs={downloadedSongs} />
+          <SongItem
+            song={item}
+            downloadedSongs={downloadedSongs}
+            isDownloading={isDownloading}
+            currentDownload={currentDownload}
+            isOffline={isOffline}
+            enqueueDownload={enqueueDownload}
+          />
         )}
       />
     </View>
   );
 };
 
-export default DownloadedSongs;
-
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20 },
-  subHeader: {
-    fontSize: 20,
-    fontWeight: "600",
-    marginTop: 20,
-    marginBottom: 10,
-  },
+  container: { flex: 1, padding: 16 },
+  header: { fontSize: 24, fontWeight: "bold", marginBottom: 10 },
+  storageInfo: { marginBottom: 16 },
+  storageText: { fontSize: 14 },
 });
+
+export default OfflineModeApp;
